@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue, RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureDescriptor, TextureUsages, TextureViewDescriptor, util::DeviceExt, wgt::SamplerDescriptor
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue,
+    RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout,
+    TexelCopyTextureInfo, TextureDescriptor, TextureUsages, TextureViewDescriptor, util::DeviceExt,
+    wgt::SamplerDescriptor,
 };
 use winit::{
     application::ApplicationHandler,
@@ -62,7 +66,9 @@ const VERTICES: &[Vertex] = &[
 
 const INDICES: &[u16] = &[0, 1, 2, 2, 1, 3];
 
-const HEIGHT_MAP: &[f32] = &[0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0];
+const HEIGHT_MAP: &[f32] = &[
+    0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0,
+];
 
 pub struct Renderer {
     window: Arc<Window>,
@@ -178,58 +184,59 @@ impl Renderer {
             ..Default::default()
         });
 
-        queue.write_texture(TexelCopyTextureInfo {
-            texture: &height_texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All
-        }, 
-        bytemuck::cast_slice(HEIGHT_MAP), 
-        TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * HEIGHT_MAP.len() as u32),
-            rows_per_image: Some(1)
-        },
-        texture_size);
-
-        let height_map_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture { 
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false }, 
-                        view_dimension: wgpu::TextureViewDimension::D1, 
-                        multisampled: false 
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
-                    count: None,
-                }
-            ],
-            label: None
-        });
-
-        let height_map_bind_group = device.create_bind_group(
-            &BindGroupDescriptor {
-                label: Some("Height map bind group"),
-                layout: &height_map_bind_group_layout,
-                entries: &[
-                    BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&height_map_view),
-                    },
-                    BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&height_map_sampler),
-                    }
-                ]
-            }
+        queue.write_texture(
+            TexelCopyTextureInfo {
+                texture: &height_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytemuck::cast_slice(HEIGHT_MAP),
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * HEIGHT_MAP.len() as u32),
+                rows_per_image: Some(1),
+            },
+            texture_size,
         );
+
+        let height_map_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                entries: &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D1,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                        count: None,
+                    },
+                ],
+                label: None,
+            });
+
+        let height_map_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Height map bind group"),
+            layout: &height_map_bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&height_map_view),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&height_map_sampler),
+                },
+            ],
+        });
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -281,8 +288,6 @@ impl Renderer {
             cache: None,          // 6.
         });
 
-
-
         // continued ...
         Ok(Self {
             window,
@@ -296,7 +301,7 @@ impl Renderer {
             num_vertices,
             index_buffer,
             num_indices,
-            height_map_bind_group
+            height_map_bind_group,
         })
     }
 

@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use wgpu::{
-    Device, DeviceDescriptor, Instance, InstanceDescriptor, Queue, RequestAdapterOptions, Surface,
-    SurfaceConfiguration, TextureUsages, util::DeviceExt,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue, RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureDescriptor, TextureUsages, TextureViewDescriptor, util::DeviceExt, wgt::SamplerDescriptor
 };
 use winit::{
     application::ApplicationHandler,
@@ -45,11 +44,11 @@ impl Vertex {
 const VERTICES: &[Vertex] = &[
     Vertex {
         position: [-1.0, -1.0, 0.0],
-        color: [1.0, 0.0, 0.0],
+        color: [0.0, 0.0, 0.0],
     },
     Vertex {
         position: [1.0, -1.0, 0.0],
-        color: [0.0, 0.0, 1.0],
+        color: [1.0, 0.0, 1.0],
     },
     Vertex {
         position: [-1.0, 1.0, 0.0],
@@ -57,11 +56,13 @@ const VERTICES: &[Vertex] = &[
     },
     Vertex {
         position: [1.0, 1.0, 0.0],
-        color: [0.0, 1.0, 0.0],
+        color: [1.0, 1.0, 0.0],
     },
 ];
 
 const INDICES: &[u16] = &[0, 1, 2, 2, 1, 3];
+
+const HEIGHT_MAP: &[f32] = &[0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0];
 
 pub struct Renderer {
     window: Arc<Window>,
@@ -75,6 +76,7 @@ pub struct Renderer {
     num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    height_map_bind_group: BindGroup,
 }
 
 impl Renderer {
@@ -136,10 +138,103 @@ impl Renderer {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
         });
 
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let num_indices = INDICES.len() as u32;
+
+        let texture_size = Extent3d {
+            width: HEIGHT_MAP.len() as u32,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+        let height_texture = device.create_texture(&TextureDescriptor {
+            label: Some("Height map texture"),
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D1,
+            format: wgpu::TextureFormat::R32Float,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        let height_map_view = height_texture.create_view(&TextureViewDescriptor::default());
+        let height_map_sampler = device.create_sampler(&SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            ..Default::default()
+        });
+
+        queue.write_texture(TexelCopyTextureInfo {
+            texture: &height_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All
+        }, 
+        bytemuck::cast_slice(HEIGHT_MAP), 
+        TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * HEIGHT_MAP.len() as u32),
+            rows_per_image: Some(1)
+        },
+        texture_size);
+
+        let height_map_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture { 
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false }, 
+                        view_dimension: wgpu::TextureViewDimension::D1, 
+                        multisampled: false 
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    count: None,
+                }
+            ],
+            label: None
+        });
+
+        let height_map_bind_group = device.create_bind_group(
+            &BindGroupDescriptor {
+                label: Some("Height map bind group"),
+                layout: &height_map_bind_group_layout,
+                entries: &[
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&height_map_view),
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&height_map_sampler),
+                    }
+                ]
+            }
+        );
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[Some(&height_map_bind_group_layout)],
                 immediate_size: 0,
             });
 
@@ -186,18 +281,7 @@ impl Renderer {
             cache: None,          // 6.
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = INDICES.len() as u32;
 
         // continued ...
         Ok(Self {
@@ -212,6 +296,7 @@ impl Renderer {
             num_vertices,
             index_buffer,
             num_indices,
+            height_map_bind_group
         })
     }
 
@@ -288,6 +373,7 @@ impl Renderer {
         });
 
         render_pass.set_pipeline(&self.render_pipeline); // 2.
+        render_pass.set_bind_group(0, &self.height_map_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..self.num_vertices, 0..1);
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16); // 1.

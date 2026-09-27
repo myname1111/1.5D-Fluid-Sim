@@ -1,11 +1,7 @@
 use std::sync::Arc;
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue,
-    RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout,
-    TexelCopyTextureInfo, TextureDescriptor, TextureUsages, TextureViewDescriptor, util::DeviceExt,
-    wgt::SamplerDescriptor,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue, RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureDescriptor, TextureUsages, TextureViewDescriptor, util::DeviceExt, wgt::SamplerDescriptor
 };
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 
@@ -60,11 +56,7 @@ const VERTICES: &[Vertex] = &[
 
 const INDICES: &[u16] = &[0, 1, 2, 2, 1, 3];
 
-const HEIGHT_MAP: &[f32] = &[
-    0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0,
-];
-
-pub struct Renderer {
+pub struct Renderer<const N: usize> {
     window: Arc<Window>,
     surface: Surface<'static>,
     device: Device,
@@ -76,10 +68,17 @@ pub struct Renderer {
     num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    height_map_texture: Texture,
     height_map_bind_group: BindGroup,
 }
 
-impl Renderer {
+impl<const N: usize> Renderer<N> {
+    const HEIGHT_TEXTURE_SIZE: Extent3d = Extent3d {
+        width: N as u32,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    
     pub(crate) async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let num_vertices = VERTICES.len() as u32;
@@ -151,14 +150,9 @@ impl Renderer {
         });
         let num_indices = INDICES.len() as u32;
 
-        let texture_size = Extent3d {
-            width: HEIGHT_MAP.len() as u32,
-            height: 1,
-            depth_or_array_layers: 1,
-        };
-        let height_texture = device.create_texture(&TextureDescriptor {
+        let height_map_texture = device.create_texture(&TextureDescriptor {
             label: Some("Height map texture"),
-            size: texture_size,
+            size: Self::HEIGHT_TEXTURE_SIZE,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D1,
@@ -167,7 +161,7 @@ impl Renderer {
             view_formats: &[],
         });
 
-        let height_map_view = height_texture.create_view(&TextureViewDescriptor::default());
+        let height_map_view = height_map_texture.create_view(&TextureViewDescriptor::default());
         let height_map_sampler = device.create_sampler(&SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -180,18 +174,18 @@ impl Renderer {
 
         queue.write_texture(
             TexelCopyTextureInfo {
-                texture: &height_texture,
+                texture: &height_map_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            bytemuck::cast_slice(HEIGHT_MAP),
+            bytemuck::cast_slice(&vec![0.0; N]),
             TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * HEIGHT_MAP.len() as u32),
+                bytes_per_row: Some(N as u32 * 4),
                 rows_per_image: Some(1),
             },
-            texture_size,
+            Self::HEIGHT_TEXTURE_SIZE,
         );
 
         let height_map_bind_group_layout =
@@ -296,6 +290,7 @@ impl Renderer {
             index_buffer,
             num_indices,
             height_map_bind_group,
+            height_map_texture
         })
     }
 
@@ -308,8 +303,23 @@ impl Renderer {
         }
     }
 
-    pub(crate) fn update(&mut self) {
-        // remove `todo!()`
+    pub(crate) fn update(&mut self, height_map: &[f32]) {
+        self.queue.write_texture(
+            TexelCopyTextureInfo {
+                texture: &self.height_map_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytemuck::cast_slice(height_map),
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * height_map.len() as u32),
+                rows_per_image: Some(1),
+            },
+            Self::HEIGHT_TEXTURE_SIZE,
+        );
+
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {

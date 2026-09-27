@@ -1,4 +1,5 @@
 mod renderer;
+mod simulation;
 
 use std::sync::Arc;
 
@@ -10,36 +11,37 @@ use winit::{
     window::Window,
 };
 
-use crate::renderer::Renderer;
+use crate::{renderer::Renderer, simulation::Simulation};
 
-pub struct App {
-    renderer: Option<Renderer>,
+pub struct App<const N: usize> {
+    renderer: Option<Renderer<N>>,
+    simulation: Simulation<N>
 }
 
-impl App {
+impl<const N: usize> App<N> {
     pub fn new() -> Self {
-        Self { renderer: None }
+        Self { renderer: None, simulation: Simulation::<N>::new(2.0) }
     }
 
     pub fn run() -> anyhow::Result<()> {
         env_logger::init();
 
         let event_loop = EventLoop::with_user_event().build()?;
-        let mut app = App::new();
+        let mut app = App::<N>::new();
         event_loop.run_app(&mut app)?;
 
         Ok(())
     }
 }
 
-impl ApplicationHandler<Renderer> for App {
+impl<const N: usize> ApplicationHandler<Renderer<N>> for App<N> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes();
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.renderer = Some(pollster::block_on(Renderer::new(window)).unwrap())
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: Renderer) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: Renderer<N>) {
         self.renderer = Some(event)
     }
 
@@ -57,7 +59,8 @@ impl ApplicationHandler<Renderer> for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => renderer.resize(size.height, size.width),
             WindowEvent::RedrawRequested => {
-                renderer.update();
+                self.simulation.update(0.01);
+                renderer.update(self.simulation.height());
                 match renderer.render() {
                     Ok(_) => {}
                     Err(e) => {

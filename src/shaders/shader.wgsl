@@ -29,7 +29,7 @@ const MAX_HEIGHT: f32 = 5.0;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var tex_coords: f32 = (in.color.x + 1.0) / 2.0;
+    var tex_coords: f32 = in.color.x;
     var height: f32 = textureSample(height_map_texture, height_map_sampler, tex_coords).x / MAX_HEIGHT;
     if height > in.color.y {
         return vec4<f32>(0.0, 0.0, 1.0, 1.0);

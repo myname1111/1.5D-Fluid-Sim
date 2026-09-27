@@ -1,5 +1,5 @@
 mod renderer;
-mod simulation;
+pub mod simulation;
 
 use std::sync::Arc;
 
@@ -20,19 +20,19 @@ pub struct App<const N: usize> {
 }
 
 impl<const N: usize> App<N> {
-    pub fn new() -> Self {
+    pub fn new(simulation: Simulation<N>) -> Self {
         Self {
             renderer: None,
-            simulation: Simulation::<N>::new(2.0),
+            simulation,
             current_time: std::time::Instant::now(),
         }
     }
 
-    pub fn run() -> anyhow::Result<()> {
+    pub fn run(simulation: Simulation<N>) -> anyhow::Result<()> {
         env_logger::init();
 
         let event_loop = EventLoop::with_user_event().build()?;
-        let mut app = App::<N>::new();
+        let mut app = App::<N>::new(simulation);
         event_loop.run_app(&mut app)?;
 
         Ok(())
@@ -67,6 +67,14 @@ impl<const N: usize> ApplicationHandler<Renderer<N>> for App<N> {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => renderer.resize(size.height, size.width),
             WindowEvent::RedrawRequested => {
+                // for i in (N / 2)..N {
+                //     self.simulation.height_map[i] += 0.0001; // rain
+                // }
+                //
+                // for i in 0..N {
+                //     self.simulation.height_map[i] -= 0.0001 / 2.0; // evaporation
+                // }
+                
                 self.simulation.update(dt.as_secs_f32());
                 renderer.update(self.simulation.height());
                 match renderer.render() {

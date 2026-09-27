@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue, RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureDescriptor, TextureUsages, TextureViewDescriptor, util::DeviceExt, wgt::SamplerDescriptor
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, Device, DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, Queue,
+    RequestAdapterOptions, ShaderStages, Surface, SurfaceConfiguration, TexelCopyBufferLayout,
+    TexelCopyTextureInfo, Texture, TextureDescriptor, TextureUsages, TextureViewDescriptor,
+    util::DeviceExt, wgt::SamplerDescriptor,
 };
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 
@@ -78,7 +82,7 @@ impl<const N: usize> Renderer<N> {
         height: 1,
         depth_or_array_layers: 1,
     };
-    
+
     pub(crate) async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let num_vertices = VERTICES.len() as u32;
@@ -290,7 +294,7 @@ impl<const N: usize> Renderer<N> {
             index_buffer,
             num_indices,
             height_map_bind_group,
-            height_map_texture
+            height_map_texture,
         })
     }
 
@@ -319,7 +323,6 @@ impl<const N: usize> Renderer<N> {
             },
             Self::HEIGHT_TEXTURE_SIZE,
         );
-
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {

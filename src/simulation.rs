@@ -1,11 +1,11 @@
 pub(crate) struct Simulation<const N: usize> {
-    height_map: Box<[f32; N]>
+    height_map: Box<[f32; N]>,
 }
 
 impl<const N: usize> Simulation<N> {
     pub(crate) fn new(initial_height: f32) -> Self {
         Self {
-            height_map: Box::new([initial_height; N])
+            height_map: Box::new([initial_height; N]),
         }
     }
 

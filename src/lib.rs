@@ -15,12 +15,17 @@ use crate::{renderer::Renderer, simulation::Simulation};
 
 pub struct App<const N: usize> {
     renderer: Option<Renderer<N>>,
-    simulation: Simulation<N>
+    simulation: Simulation<N>,
+    current_time: std::time::Instant,
 }
 
 impl<const N: usize> App<N> {
     pub fn new() -> Self {
-        Self { renderer: None, simulation: Simulation::<N>::new(2.0) }
+        Self {
+            renderer: None,
+            simulation: Simulation::<N>::new(2.0),
+            current_time: std::time::Instant::now(),
+        }
     }
 
     pub fn run() -> anyhow::Result<()> {
@@ -48,18 +53,21 @@ impl<const N: usize> ApplicationHandler<Renderer<N>> for App<N> {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
         let Some(renderer) = &mut self.renderer else {
             return;
         };
 
+        let dt = self.current_time.elapsed();
+        self.current_time = std::time::Instant::now();
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => renderer.resize(size.height, size.width),
             WindowEvent::RedrawRequested => {
-                self.simulation.update(0.01);
+                self.simulation.update(dt.as_secs_f32());
                 renderer.update(self.simulation.height());
                 match renderer.render() {
                     Ok(_) => {}

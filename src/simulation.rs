@@ -24,6 +24,10 @@ impl<const N: usize> Simulation<N> {
         out
     }
 
+    fn looping_bc(grid: Box<[f32; N]>) -> (f32, f32) {
+        (grid[N - 1], grid[0])
+    }
+
     pub(crate) fn update(&mut self, dt: f32) {
         for i in 0..self.height_map.len() {
             self.height_map[i] += dt * 0.1;
@@ -58,5 +62,14 @@ mod tests {
         let result = Simulation::difference(grid, ghosts, false);
         dbg!(&result, &expected);
         assert!(expected.iter().zip(result.iter()).all(|(a, b)| (a - b).abs() < TOLERANCE));
+    }
+
+    #[test]
+    fn test_looping_bc() {
+        let grid = Box::new([0.0, 1.0, 1.0, 1.0]);
+        let expected = (1.0, 0.0);
+        let result = Simulation::looping_bc(grid);
+        assert!((result.0 - expected.0).abs() < TOLERANCE);
+        assert!((result.1 - expected.1).abs() < TOLERANCE);
     }
 }

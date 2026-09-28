@@ -15,6 +15,35 @@ impl<const N: usize> Simulation<N> {
         }
     }
 
+    fn minmod2(a: f32, b: f32) -> f32 {
+        if (a.signum() + b.signum()).abs() < 2.0 {
+            0.0
+        } else {
+            a.signum() * a.abs().min(b.abs())
+        }
+    }
+
+    fn minmod3(a: f32, b: f32, c: f32) -> f32 {
+        if (a.signum() + b.signum() + c.signum()).abs() < 3.0 {
+            0.0
+        } else {
+            a.signum() * a.abs().min(b.abs()).min(c.abs())
+        }
+    }
+
+    fn limit_flux(grid: &[f32]) -> Box<[f32; N]> {
+        let mut out = Box::<[f32; N]>::new([0.0; N]);
+        for i in 0..N {
+            out[i] = match i {
+                0 => Self::minmod2(grid[0], grid[1]),
+                i if i == N - 1 => Self::minmod2(grid[N - 2], grid[N - 1]),
+                i => Self::minmod3(grid[i - 1], grid[i], grid[i + 1]),
+            }
+        }
+        // dbg!(&out);
+        out
+    }
+
     fn difference(grid: &[f32], ghosts: (f32, f32), is_forward: bool) -> Box<[f32; N]> {
         let mut out = Box::new([0.0; N]);
         for i in 0..N {
@@ -25,7 +54,7 @@ impl<const N: usize> Simulation<N> {
                 (_, _, false) => grid[i] - grid[i - 1],
             };
         }
-        out
+        Self::limit_flux(&out[..])
     }
 
     fn looping_bc(grid: &[f32]) -> (f32, f32) {
@@ -54,7 +83,7 @@ impl<const N: usize> Simulation<N> {
             .chain(std::iter::once((&ghost_height.1, &ghost_mom.1)))
             .map(|(&height, &momentum)| Self::potential(height, momentum))
             .collect::<(Vec<f32>, Vec<f32>)>();
-        
+
         let pred_height = Self::difference(
             &potential_height[1..(N + 1)],
             (potential_height[0], potential_height[N + 1]),
@@ -172,5 +201,13 @@ mod tests {
         sim.update(1.0 / 60.0);
         dbg!(&sim.height_map);
         dbg!(&sim.momentum);
+    }
+
+    #[test]
+    fn test_minmod() {
+        assert_eq!(Simulation::<1>::minmod2(1.0, 2.0), 1.0);
+        assert_eq!(Simulation::<1>::minmod2(-1.0, 2.0), 0.0);
+        assert_eq!(Simulation::<1>::minmod2(-1.0, -2.0), -1.0);
+        assert_eq!(Simulation::<1>::minmod2(-1.0, 0.0), 0.0);
     }
 }

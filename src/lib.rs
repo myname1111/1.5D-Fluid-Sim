@@ -74,7 +74,7 @@ impl<const N: usize> ApplicationHandler<Renderer<N>> for App<N> {
                 // for i in 0..N {
                 //     self.simulation.height_map[i] -= 0.0001 / 2.0; // evaporation
                 // }
-                
+
                 self.simulation.update(dt.as_secs_f32());
                 renderer.update(self.simulation.height());
                 match renderer.render() {

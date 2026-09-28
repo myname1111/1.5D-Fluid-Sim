@@ -16,45 +16,31 @@ impl<const N: usize> Simulation<N> {
     }
 
     fn minmod2(a: f32, b: f32) -> f32 {
-        if (a.signum() + b.signum()).abs() < 2.0 {
+        if a * b <= 0.0 {
             0.0
         } else {
             a.signum() * a.abs().min(b.abs())
         }
     }
 
-    fn minmod3(a: f32, b: f32, c: f32) -> f32 {
-        if (a.signum() + b.signum() + c.signum()).abs() < 3.0 {
-            0.0
-        } else {
-            a.signum() * a.abs().min(b.abs()).min(c.abs())
-        }
-    }
-
-    fn limit_flux(grid: &[f32]) -> Box<[f32; N]> {
-        let mut out = Box::<[f32; N]>::new([0.0; N]);
-        for i in 0..N {
-            out[i] = match i {
-                0 => Self::minmod2(grid[0], grid[1]),
-                i if i == N - 1 => Self::minmod2(grid[N - 2], grid[N - 1]),
-                i => Self::minmod3(grid[i - 1], grid[i], grid[i + 1]),
-            }
-        }
-        // dbg!(&out);
-        out
-    }
-
-    fn difference(grid: &[f32], ghosts: (f32, f32), is_forward: bool) -> Box<[f32; N]> {
+    fn difference(grid: &[f32], ghosts: (f32, f32)) -> Box<[f32; N]> {
         let mut out = Box::new([0.0; N]);
         for i in 0..N {
-            out[i] = match (i == 0, i == N - 1, is_forward) {
-                (true, _, false) => grid[0] - ghosts.0,
-                (_, true, true) => ghosts.1 - grid[N - 1],
-                (_, _, true) => grid[i + 1] - grid[i],
-                (_, _, false) => grid[i] - grid[i - 1],
+            let left = if i == 0 {
+                grid[0] - ghosts.0
+            } else {
+                grid[i] - grid[i - 1]
             };
+
+            let right = if i == N - 1 {
+                ghosts.1 - grid[N - 1]
+            } else {
+                grid[i + 1] - grid[i]
+            };
+
+            out[i] = Self::minmod2(left, right)
         }
-        Self::limit_flux(&out[..])
+        out
     }
 
     fn looping_bc(grid: &[f32]) -> (f32, f32) {
@@ -87,7 +73,6 @@ impl<const N: usize> Simulation<N> {
         let pred_height = Self::difference(
             &potential_height[1..(N + 1)],
             (potential_height[0], potential_height[N + 1]),
-            true,
         )
         .iter()
         .zip(self.height_map.iter())
@@ -96,7 +81,6 @@ impl<const N: usize> Simulation<N> {
         let pred_mom = Self::difference(
             &potential_mom[1..(N + 1)],
             (potential_mom[0], potential_mom[N + 1]),
-            true,
         )
         .iter()
         .zip(self.momentum.iter())
@@ -119,7 +103,6 @@ impl<const N: usize> Simulation<N> {
         for (idx, (delta, height)) in Self::difference(
             &potential_pred_height[1..(N + 1)],
             (potential_pred_height[0], potential_pred_height[N + 1]),
-            false,
         )
         .iter()
         .zip(pred_height)
@@ -131,7 +114,6 @@ impl<const N: usize> Simulation<N> {
         for (idx, (delta, momentum)) in Self::difference(
             &potential_pred_mom[1..(N + 1)],
             (potential_pred_mom[0], potential_pred_mom[N + 1]),
-            false,
         )
         .iter()
         .zip(pred_mom)
@@ -155,26 +137,11 @@ mod tests {
     const TOLERANCE: f32 = 1e-9;
 
     #[test]
-    fn test_forward_diff() {
+    fn test_diff() {
         let grid = Box::new([0.0, 1.0, 1.0, 0.0]);
         let ghosts = (1.0, 1.0);
-        let expected = Box::new([1.0, 0.0, -1.0, 1.0]);
-        let result: Box<[f32; 4]> = Simulation::difference(grid.as_slice(), ghosts, true);
-        dbg!(&result, &expected);
-        assert!(
-            expected
-                .iter()
-                .zip(result.iter())
-                .all(|(a, b)| (a - b).abs() < TOLERANCE)
-        );
-    }
-
-    #[test]
-    fn test_backward_diff() {
-        let grid = Box::new([0.0, 1.0, 1.0, 0.0]);
-        let ghosts = (1.0, 1.0);
-        let expected = Box::new([-1.0, 1.0, 0.0, -1.0]);
-        let result: Box<[f32; 4]> = Simulation::difference(grid.as_slice(), ghosts, false);
+        let expected = Box::new([0.0, 0.0, 0.0, 0.0]);
+        let result: Box<[f32; 4]> = Simulation::difference(grid.as_slice(), ghosts);
         dbg!(&result, &expected);
         assert!(
             expected
